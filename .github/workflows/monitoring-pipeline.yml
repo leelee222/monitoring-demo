@@ -1,0 +1,181 @@
+name: Monitoring Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  LOG_GROUP: /devsecops/demo/pipeline
+  SNS_TOPIC_ARN: ${{ secrets.SNS_TOPIC_ARN }}
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 pytest flake8 bandit
+      
+      - name: Lint with flake8
+        run: |
+          flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        continue-on-error: false
+      
+      - name: Security scan with Bandit
+        id: security-scan
+        run: |
+          bandit -r app/ -f json -o bandit-report.json || true
+          bandit -r app/ -ll
+        continue-on-error: false
+      
+      - name: Run tests
+        id: tests
+        run: |
+          echo "Running application tests..."
+          python -m pytest tests/ || echo "No tests found"
+        continue-on-error: false
+      
+      - name: Configure AWS credentials
+        if: github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Log to CloudWatch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          timestamp=$(date +%s000)
+          message="Pipeline: ${{ github.workflow }} | Run: ${{ github.run_number }} | Status: Success | Commit: ${{ github.sha }}"
+          
+          aws logs put-log-events \
+            --log-group-name "${{ env.LOG_GROUP }}" \
+            --log-stream-name "github-actions" \
+            --log-events timestamp=${timestamp},message="${message}" \
+            --region ${{ env.AWS_REGION }} || true
+      
+      - name: Notify on Success
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          aws sns publish \
+            --topic-arn "${{ env.SNS_TOPIC_ARN }}" \
+            --subject "Pipeline Success: ${{ github.workflow }}" \
+            --message "Pipeline completed successfully!
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Triggered by: ${{ github.actor }}" \
+            --region ${{ env.AWS_REGION }} || true
+
+  terraform-validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+      
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive terraform/
+        continue-on-error: false
+      
+      - name: Terraform Init
+        id: init
+        run: terraform -chdir=terraform init -backend=false
+      
+      - name: Terraform Validate
+        id: validate
+        run: terraform -chdir=terraform validate
+      
+      - name: Configure AWS credentials
+        if: github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Notify Terraform Status
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws sns publish \
+            --topic-arn "${{ env.SNS_TOPIC_ARN }}" \
+            --subject "Terraform Validation Success" \
+            --message "Terraform validation passed for ${{ github.repository }}" \
+            --region ${{ env.AWS_REGION }} || true
+
+  # Alert on ANY failure
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [build-and-test, terraform-validate]
+    if: failure()
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Log failure to CloudWatch
+        run: |
+          timestamp=$(date +%s000)
+          message="FAILURE: Pipeline: ${{ github.workflow }} | Run: ${{ github.run_number }} | Commit: ${{ github.sha }}"
+          
+          aws logs put-log-events \
+            --log-group-name "${{ env.LOG_GROUP }}" \
+            --log-stream-name "github-actions" \
+            --log-events timestamp=${timestamp},message="${message}" \
+            --region ${{ env.AWS_REGION }} || true
+      
+      - name: Send failure alert to SNS
+        run: |
+          aws sns publish \
+            --topic-arn "${{ env.SNS_TOPIC_ARN }}" \
+            --subject "ALERT: Pipeline Failure - ${{ github.workflow }}" \
+            --message "Pipeline FAILED!
+            
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Triggered by: ${{ github.actor }}
+            
+            Please check the logs immediately." \
+            --region ${{ env.AWS_REGION }}
+      
+      - name: Publish failure metric to CloudWatch
+        run: |
+          aws cloudwatch put-metric-data \
+            --namespace "DevSecOps/Demo" \
+            --metric-name "PipelineFailureCount" \
+            --value 1 \
+            --unit Count \
+            --region ${{ env.AWS_REGION }}

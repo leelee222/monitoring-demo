@@ -4,10 +4,10 @@ resource "aws_cloudwatch_dashboard" "main" {
   dashboard_body = jsonencode({
     widgets = [
       {
-        type = "metric"
-        x    = 0
-        y    = 0
-        width = 12
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
         height = 6
         properties = {
           metrics = [
@@ -28,10 +28,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "metric"
-        x    = 12
-        y    = 0
-        width = 12
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
         height = 6
         properties = {
           metrics = [
@@ -52,10 +52,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "metric"
-        x    = 0
-        y    = 6
-        width = 12
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 12
         height = 6
         properties = {
           metrics = [
@@ -75,10 +75,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "metric"
-        x    = 12
-        y    = 6
-        width = 12
+        type   = "metric"
+        x      = 12
+        y      = 6
+        width  = 12
         height = 6
         properties = {
           metrics = [
@@ -97,10 +97,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "log"
-        x    = 0
-        y    = 12
-        width = 24
+        type   = "log"
+        x      = 0
+        y      = 12
+        width  = 24
         height = 6
         properties = {
           query   = "SOURCE '${aws_cloudwatch_log_group.app_logs.name}' | fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
@@ -111,10 +111,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "metric"
-        x    = 0
-        y    = 18
-        width = 12
+        type   = "metric"
+        x      = 0
+        y      = 18
+        width  = 12
         height = 6
         properties = {
           metrics = [
@@ -133,10 +133,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "alarm"
-        x    = 12
-        y    = 18
-        width = 12
+        type   = "alarm"
+        x      = 12
+        y      = 18
+        width  = 12
         height = 6
         properties = {
           alarms = [
@@ -152,10 +152,10 @@ resource "aws_cloudwatch_dashboard" "main" {
       },
 
       {
-        type = "text"
-        x    = 0
-        y    = 24
-        width = 24
+        type   = "text"
+        x      = 0
+        y      = 24
+        width  = 24
         height = 2
         properties = {
           markdown = <<-EOT

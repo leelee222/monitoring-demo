@@ -2,7 +2,7 @@
 
 ### Centralized Logging, Monitoring & Alerting for a Cloud-Native DevSecOps Environment
 
-*A hands-on demonstration of observability using CloudWatch / Grafana / ELK + automated alerting pipelines.*
+*A hands-on demonstration of observability using AWS CloudWatch with automated alerting pipelines.*
 
 ---
 
@@ -25,10 +25,13 @@ It covers:
 | Category         | Tools                           |
 | ---------------- | ------------------------------- |
 | Cloud Monitoring | AWS CloudWatch                  |
-| Logging          | CloudWatch Logs, ELK            |
-| Dashboards       | Grafana                         |
-| CI/CD Alerts     | GitHub Actions notifications    |
-| Languages        | Terraform, Bash, YAML           |
+| Logging          | CloudWatch Logs                 |
+| Metrics          | CloudWatch Metrics              |
+| Dashboards       | CloudWatch Dashboards           |
+| Alerting         | SNS (Email/Slack)               |
+| CI/CD Alerts     | GitHub Actions                  |
+| Infrastructure   | Terraform (IaC)                 |
+| Languages        | Python, HCL, YAML, Bash         |
 
 ---
 
@@ -43,8 +46,8 @@ It covers:
 ### **Monitoring Dashboards**
 
 * Real-time metrics (CPU, memory, errors)
-* Custom dashboard for app + pipeline
-* Grafana visualization
+* Custom CloudWatch dashboard for app + pipeline
+* Visual widgets for logs, metrics, and alarms
 
 ### **Alerts & Notifications**
 
